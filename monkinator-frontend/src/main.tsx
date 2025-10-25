@@ -8,6 +8,18 @@ import './index.css'
 import App from './App.tsx'
 import '@rainbow-me/rainbowkit/styles.css'
 
+// Suppress MetaMask extension errors
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  const message = args.join(' ');
+  if (message.includes('chrome.runtime.sendMessage') ||
+    message.includes('Extension ID') ||
+    message.includes('inpage.js')) {
+    return; // Suppress these specific errors
+  }
+  originalConsoleError.apply(console, args);
+};
+
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')!).render(

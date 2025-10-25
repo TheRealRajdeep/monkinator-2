@@ -6,3 +6,6 @@ export * from './layout';
 
 // Home Components
 export * from './home';
+
+// Game Components
+export * from './game';

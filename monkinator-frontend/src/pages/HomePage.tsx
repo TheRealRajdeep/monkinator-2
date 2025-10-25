@@ -1,19 +1,58 @@
-import React from 'react';
-import { HeroSection } from '../components';
+import React, { useState } from 'react';
+import { HeroSection, JobGuessingGame, GameStatus } from '../components';
+import { useJobGuessingContract } from '../lib/contract';
 
 const HomePage: React.FC = () => {
+    const [showGame, setShowGame] = useState(false);
+    const [gameResult, setGameResult] = useState<boolean | null>(null);
+
+    const { gameDetails, hasCommitted, hasRevealed } = useJobGuessingContract();
+
     const handleStartAdventure = () => {
-        console.log('Starting adventure...');
-        // Add navigation logic here
+        setShowGame(true);
     };
 
-    const handleLearnMore = () => {
-        console.log('Learning more...');
-        // Add navigation logic here
+    const handleGameComplete = (aiGuessedCorrectly: boolean) => {
+        setGameResult(aiGuessedCorrectly);
+        // Here you would integrate with the smart contract
+        console.log('AI guessed correctly:', aiGuessedCorrectly);
     };
+
+    const handleBackToHome = () => {
+        setShowGame(false);
+        setGameResult(null);
+    };
+
+    if (showGame) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-purple-100 to-blue-100 flex flex-col items-center justify-center p-8">
+                <div className="w-full max-w-4xl space-y-6">
+                    {/* Game Status */}
+                    <GameStatus
+                        gameDetails={gameDetails}
+                        hasCommitted={hasCommitted}
+                        hasRevealed={hasRevealed}
+                    />
+
+                    {/* Main Game */}
+                    <JobGuessingGame onGameComplete={handleGameComplete} />
+
+                    {/* Back to Home Button */}
+                    <div className="text-center">
+                        <button
+                            onClick={handleBackToHome}
+                            className="text-gray-600 hover:text-gray-800 underline"
+                        >
+                            ← Back to Home
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <HeroSection />
+        <HeroSection onStartAdventure={handleStartAdventure} />
     );
 };
 
