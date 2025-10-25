@@ -6,6 +6,7 @@ import { useJobGuessingContract } from '../../lib/contract';
 import GameQuestion from './GameQuestion';
 import GameResult from './GameResult';
 import JobCommitment from './JobCommitment';
+import NetworkDebug from '../debug/NetworkDebug';
 
 interface JobGuessingGameProps {
     onGameComplete?: (aiGuessedCorrectly: boolean) => void;
@@ -30,14 +31,10 @@ const JobGuessingGame: React.FC<JobGuessingGameProps> = ({ onGameComplete }) => 
     } = useJobGuessingGame();
 
     const {
-        gameDetails,
-        hasCommitted,
-        hasRevealed,
         commitJob,
         startGame: startContractGame,
         submitGuessResult,
         revealJob,
-        claimWinnings,
         isPending: isContractPending,
     } = useJobGuessingContract();
 
@@ -52,8 +49,10 @@ const JobGuessingGame: React.FC<JobGuessingGameProps> = ({ onGameComplete }) => 
                 startContractGame()
             ]);
             setGamePhase('game');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error committing job and starting game:', error);
+            // The error will be caught by the contract hook and displayed
+            throw error; // Re-throw to let the UI handle it
         }
     };
 
@@ -70,7 +69,7 @@ const JobGuessingGame: React.FC<JobGuessingGameProps> = ({ onGameComplete }) => 
 
         try {
             // Submit AI guess result to contract
-            const aiGuessedCorrectly = confidence && confidence > 70;
+            const aiGuessedCorrectly = Boolean(confidence && confidence > 70);
             await submitGuessResult(aiGuessedCorrectly);
 
             // Reveal the job
@@ -177,29 +176,32 @@ const JobGuessingGame: React.FC<JobGuessingGameProps> = ({ onGameComplete }) => 
     }
 
     return (
-        <Card className="w-full max-w-2xl mx-auto p-8 bg-white/90 backdrop-blur-sm">
-            <div className="text-center space-y-6">
-                <div className="text-6xl mb-4">🧠</div>
-                <h2 className="text-2xl font-bold text-gray-800">
-                    Think of a Job or Profession
-                </h2>
-                <p className="text-gray-600 text-lg">
-                    I'll ask you yes/no questions to guess what job you're thinking of!
-                </p>
-                <p className="text-sm text-gray-500">
-                    Deposit 0.2 MON tokens to start the game
-                </p>
-                <Button
-                    variant="default"
-                    size="lg"
-                    onClick={() => setGamePhase('commit')}
-                    disabled={isAILoading || isContractPending}
-                    className="bg-purple-500 hover:bg-purple-600 text-white px-8 py-3 text-lg font-semibold"
-                >
-                    {(isAILoading || isContractPending) ? 'Starting...' : 'Start Game (0.2 MON)'}
-                </Button>
-            </div>
-        </Card>
+        <div className="space-y-4">
+            <NetworkDebug />
+            <Card className="w-full max-w-2xl mx-auto p-8 bg-white/90 backdrop-blur-sm">
+                <div className="text-center space-y-6">
+                    <div className="text-6xl mb-4">🧠</div>
+                    <h2 className="text-2xl font-bold text-gray-800">
+                        Think of a Job or Profession
+                    </h2>
+                    <p className="text-gray-600 text-lg">
+                        I'll ask you yes/no questions to guess what job you're thinking of!
+                    </p>
+                    <p className="text-sm text-gray-500">
+                        Deposit 0.2 MON tokens to start the game
+                    </p>
+                    <Button
+                        variant="default"
+                        size="lg"
+                        onClick={() => setGamePhase('commit')}
+                        disabled={isAILoading || isContractPending}
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-8 py-3 text-lg font-semibold"
+                    >
+                        {(isAILoading || isContractPending) ? 'Starting...' : 'Start Game (0.2 MON)'}
+                    </Button>
+                </div>
+            </Card>
+        </div>
     );
 };
 

@@ -26,7 +26,7 @@ export const useJobGuessingGame = (): UseJobGuessingGameReturn => {
     
     try {
       ai.resetGame();
-      const response = await ai.generateQuestion();
+      await ai.generateQuestion();
       setGameState(ai.getGameState());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start game');
@@ -41,7 +41,7 @@ export const useJobGuessingGame = (): UseJobGuessingGameReturn => {
     
     try {
       ai.submitAnswer(answer);
-      const response = await ai.generateQuestion();
+      await ai.generateQuestion();
       setGameState(ai.getGameState());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit answer');

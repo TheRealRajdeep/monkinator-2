@@ -182,6 +182,8 @@ export const useJobGuessingContract = () => {
   };
 
   const startGame = async () => {
+    if (!address) throw new Error('No wallet address available. Please connect your wallet.');
+    
     try {
       await writeContract({
         address: JOB_GUESSING_GAME_ADDRESS,
@@ -191,9 +193,23 @@ export const useJobGuessingContract = () => {
       });
       
       await refetchGameDetails();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting game:', error);
-      throw error;
+      
+      // Provide more specific error messages
+      if (error?.message?.includes('User rejected')) {
+        throw new Error('Transaction was cancelled by user');
+      } else if (error?.message?.includes('insufficient funds')) {
+        throw new Error('Insufficient funds. You need at least 0.2 MON tokens plus gas fees.');
+      } else if (error?.message?.includes('network')) {
+        throw new Error('Network error. Please check your connection and try again.');
+      } else if (error?.message?.includes('gas')) {
+        throw new Error('Gas estimation failed. Please try again.');
+      } else if (error?.message?.includes('execution reverted')) {
+        throw new Error('Transaction failed. The contract may not be properly deployed or configured.');
+      } else {
+        throw new Error(`Failed to start game: ${error?.message || 'Unknown error'}`);
+      }
     }
   };
 

@@ -3,16 +3,22 @@ import { Button } from '../ui';
 import { Card } from '../ui';
 
 interface JobCommitmentProps {
-    onJobCommitted: (job: string) => void;
+    onJobCommitted: (job: string) => Promise<void>;
     isLoading: boolean;
 }
 
 const JobCommitment: React.FC<JobCommitmentProps> = ({ onJobCommitted, isLoading }) => {
     const [job, setJob] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (job.trim()) {
-            onJobCommitted(job.trim());
+            setError(null);
+            try {
+                await onJobCommitted(job.trim());
+            } catch (err: any) {
+                setError(err.message || 'An error occurred');
+            }
         }
     };
 
@@ -40,6 +46,13 @@ const JobCommitment: React.FC<JobCommitmentProps> = ({ onJobCommitted, isLoading
                     <div className="text-sm text-gray-500">
                         💡 Tip: Be specific! Instead of "doctor", try "cardiologist" or "pediatrician"
                     </div>
+
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+                            <div className="font-semibold mb-1">Transaction Error:</div>
+                            <div>{error}</div>
+                        </div>
+                    )}
 
                     <Button
                         variant="default"

@@ -1,4 +1,3 @@
-import React from 'react';
 import { HomePage } from './pages';
 import './App.css';
 

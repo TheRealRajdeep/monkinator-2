@@ -4,7 +4,6 @@ import { useJobGuessingContract } from '../lib/contract';
 
 const HomePage: React.FC = () => {
     const [showGame, setShowGame] = useState(false);
-    const [gameResult, setGameResult] = useState<boolean | null>(null);
 
     const { gameDetails, hasCommitted, hasRevealed } = useJobGuessingContract();
 
@@ -13,14 +12,12 @@ const HomePage: React.FC = () => {
     };
 
     const handleGameComplete = (aiGuessedCorrectly: boolean) => {
-        setGameResult(aiGuessedCorrectly);
         // Here you would integrate with the smart contract
         console.log('AI guessed correctly:', aiGuessedCorrectly);
     };
 
     const handleBackToHome = () => {
         setShowGame(false);
-        setGameResult(null);
     };
 
     if (showGame) {

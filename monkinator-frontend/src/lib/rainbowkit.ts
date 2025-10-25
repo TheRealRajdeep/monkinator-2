@@ -38,8 +38,8 @@ const monadTestnet = {
 export const config = getDefaultConfig({
   appName: 'Monkinator',
   projectId: "30bede5f518fc2c9a9900ada7ef88888", // Updated project ID
-  chains: [monadTestnet, mainnet, polygon, arbitrum, optimism, base, sepolia],
-  ssr: true,
+  chains: [sepolia, monadTestnet, mainnet, polygon, arbitrum, optimism, base], // Put Sepolia first for testing
+  ssr: false, // Disable SSR to prevent hydration issues
 });
 
 export { customTheme };
