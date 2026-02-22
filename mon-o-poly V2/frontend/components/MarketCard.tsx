@@ -5,9 +5,9 @@ import { Liveline } from 'liveline';
 import { BarChart3, BookOpen } from 'lucide-react';
 import { Market } from '@/types/market';
 import { usePrivy } from '@privy-io/react-auth';
-import { createWalletClient, custom, parseEther } from 'viem';
-import { MONAD_CHAIN, CONTRACT_ADDRESS, ABI } from '@/lib/monad';
-import TradeModal from './TradeModal';
+import { parseEther } from 'viem';
+import { MONAD_CHAIN, CONTRACT_ADDRESS, ABI, getPublicClient, getWalletClient } from '@/lib/monad';
+import TradeModal, { BetReceipt } from './TradeModal';
 import { usePolymarketPrice } from '@/hooks/usePolymarketPrice';
 
 interface MarketCardProps {
@@ -22,7 +22,6 @@ const parsePrice = (val: string | undefined): number => {
 };
 
 const mockOrderbook = (yesPrice: number) => {
-  // Asks sorted high→low (approaching mid from above); all prices must be > 0
   const rawAsks = [
     { price: yesPrice + 0.10, size: 30.00 },
     { price: yesPrice + 0.06, size: 5.00 },
@@ -33,7 +32,6 @@ const mockOrderbook = (yesPrice: number) => {
     .filter((r) => r.price > 0 && r.price < 1)
     .map((r) => ({ ...r, total: r.price * r.size }));
 
-  // Bids sorted high→low; filter out non-positive prices
   const rawBids = [
     { price: yesPrice - 0.01, size: 0.92 },
     { price: yesPrice - 0.02, size: 50.00 },
@@ -63,6 +61,7 @@ export default function MarketCard({ market }: MarketCardProps) {
   const [pendingIsYes, setPendingIsYes] = useState(true);
   const { authenticated, login } = usePrivy();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [receipt, setReceipt] = useState<BetReceipt | null>(null);
 
   const initialYes = parsePrice(market.outcomePrices?.[0]);
   const initialNo = parsePrice(market.outcomePrices?.[1]);
@@ -90,6 +89,7 @@ export default function MarketCard({ market }: MarketCardProps) {
       login();
       return;
     }
+    setReceipt(null);
     setPendingIsYes(isYes);
     setTradeModalOpen(true);
   };
@@ -99,43 +99,58 @@ export default function MarketCard({ market }: MarketCardProps) {
 
     try {
       setIsProcessing(true);
-      if (!window.ethereum) {
-        alert('No wallet found!');
-        return;
-      }
 
-      const walletClient = createWalletClient({
-        chain: MONAD_CHAIN as any,
-        transport: custom(window.ethereum!),
-      });
-
+      const walletClient = getWalletClient();
       const [address] = await walletClient.requestAddresses();
 
       try {
         await walletClient.switchChain({ id: MONAD_CHAIN.id });
       } catch (e) {
-        console.error('Error switching chain', e);
+        console.warn('Chain switch failed, continuing anyway:', e);
       }
 
-      const hash = await walletClient.writeContract({
+      const txHash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS as `0x${string}`,
         abi: ABI,
-        functionName: 'buyShares',
-        args: [BigInt(market.id || 0), isYes],
+        functionName: 'placeBet',
+        args: [market.id, isYes],
         value: parseEther(amount),
         account: address,
-        chain: MONAD_CHAIN,
+        chain: MONAD_CHAIN as any,
       });
 
-      console.log('Transaction sent:', hash);
-      alert(`Transaction sent! Hash: ${hash}`);
-      setTradeModalOpen(false);
-    } catch (error) {
-      console.error('Transaction failed:', error);
-      alert('Transaction failed. Check console.');
+      console.log('[placeBet] tx submitted:', txHash);
+
+      // Wait for on-chain confirmation
+      const publicClient = getPublicClient();
+      const txReceipt = await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        confirmations: 1,
+      });
+
+      console.log('[placeBet] confirmed in block', txReceipt.blockNumber);
+
+      setReceipt({
+        txHash,
+        amount,
+        isYes,
+        market: market.question,
+        blockNumber: txReceipt.blockNumber,
+      });
+    } catch (error: any) {
+      console.error('[placeBet] failed:', error);
+      // Friendly error — user rejected or tx reverted
+      const msg =
+        error?.shortMessage ?? error?.message ?? 'Transaction failed. Check the console for details.';
+      alert(msg);
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleModalClose = () => {
+    setTradeModalOpen(false);
+    setReceipt(null);
   };
 
   const noChartData = chartData.map((p) => ({ time: p.time, value: 1 - p.value }));
@@ -285,22 +300,19 @@ export default function MarketCard({ market }: MarketCardProps) {
                 </div>
               </div>
 
-              {/* Asks — independent scroll, rows anchor to bottom */}
+              {/* Asks */}
               <div className="flex-1 overflow-y-auto flex flex-col justify-end min-h-0">
                 {asks.map((row, i) => (
                   <div key={`ask-${i}`} className="relative flex items-center px-3 py-[7px] shrink-0">
-                    {/* depth bar — absolute so it never affects column alignment */}
                     <div
                       className="absolute left-0 top-0 bottom-0 bg-[#FF8EE4]/10"
                       style={{ width: `${row.depthPct}%` }}
                     />
-                    {/* badge — absolute so it never shifts the grid */}
                     {i === asks.length - 1 && (
                       <span className="absolute left-3 z-20 bg-[#FF8EE4] text-[#0E091C] text-[9px] font-bold px-1.5 py-0.5 rounded">
                         Asks
                       </span>
                     )}
-                    {/* grid always the same width on every row */}
                     <div className="grid grid-cols-3 text-right z-10 w-[62%] ml-auto relative">
                       <span className="font-mono-brand text-sm text-[#FF8EE4]">
                         {(row.price * 100).toFixed(1)}¢
@@ -316,7 +328,7 @@ export default function MarketCard({ market }: MarketCardProps) {
                 ))}
               </div>
 
-              {/* Spread — always visible, pinned between the two halves */}
+              {/* Spread */}
               <div className="flex items-center justify-between px-3 py-2 border-y border-white/10 shrink-0">
                 <span className="font-mono-brand text-xs text-white/50">
                   Last: {(yesPrice * 100).toFixed(1)}¢
@@ -326,22 +338,19 @@ export default function MarketCard({ market }: MarketCardProps) {
                 </span>
               </div>
 
-              {/* Bids — independent scroll */}
+              {/* Bids */}
               <div className="flex-1 overflow-y-auto min-h-0">
                 {bids.map((row, i) => (
                   <div key={`bid-${i}`} className="relative flex items-center px-3 py-[7px] shrink-0">
-                    {/* depth bar — absolute */}
                     <div
                       className="absolute left-0 top-0 bottom-0 bg-[#85E6FF]/10"
                       style={{ width: `${row.depthPct}%` }}
                     />
-                    {/* badge — absolute */}
                     {i === 0 && (
                       <span className="absolute left-3 z-20 bg-[#85E6FF] text-[#0E091C] text-[9px] font-bold px-1.5 py-0.5 rounded">
                         Bids
                       </span>
                     )}
-                    {/* grid always the same width on every row */}
                     <div className="grid grid-cols-3 text-right z-10 w-[62%] ml-auto relative">
                       <span className="font-mono-brand text-sm text-[#85E6FF]">
                         {(row.price * 100).toFixed(1)}¢
@@ -362,7 +371,7 @@ export default function MarketCard({ market }: MarketCardProps) {
       </div>
 
       {/* YES / NO Buttons */}
-      <div className="mt-auto p-4 pb-6 bg-gradient-to-t from-[#0E091C] via-[#0E091C]/80 to-transparent">
+      <div className="mt-auto p-4 pb-6 bg-linear-to-t from-[#0E091C] via-[#0E091C]/80 to-transparent">
         <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
           <button
             onClick={() => handleYesNoClick(true)}
@@ -381,10 +390,11 @@ export default function MarketCard({ market }: MarketCardProps) {
 
       <TradeModal
         isOpen={tradeModalOpen}
-        onClose={() => setTradeModalOpen(false)}
+        onClose={handleModalClose}
         onTrade={handleTrade}
         isYes={pendingIsYes}
         isProcessing={isProcessing}
+        receipt={receipt}
       />
     </div>
   );
